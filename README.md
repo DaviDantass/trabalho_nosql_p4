@@ -2,6 +2,11 @@
 
 Laboratório de Persistência Poliglota com Streamlit, SQLite e MongoDB.
 
+Relátorio: 
+```powershell
+GeoLog.pdf
+```
+
 ## Arquitetura
 
 - **SQLite (`logitech.db`)**: motoristas e veículos.

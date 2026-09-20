@@ -121,11 +121,3 @@ O resultado aparece na aba **Visão Unificada**:
 ```text
 Motorista | Placa | Temperatura | Velocidade | Latitude | Longitude
 ```
-
-## Demonstração do site
-
-1. Abra o Streamlit e mostre os KPIs.
-2. Na aba **Geoprocessamento**, altere o ponto e o raio; mostre o mapa.
-3. Na aba **Visão Unificada**, explique o join entre SQLite e MongoDB.
-4. No **Dashboard**, mostre os gráficos.
-5. Clique em **Simular Movimentação** para inserir novos registros no MongoDB.

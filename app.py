@@ -4,25 +4,26 @@
 
 import random
 import sqlite3
-from datetime import datetime, timezone #utc
+from datetime import datetime, timezone  # utc
 from pathlib import Path
 import folium
-import pandas as pd #join em memoria
+import pandas as pd  # join em memoria
 import plotly.express as px
 import streamlit as st
+
 # pym: índices, ordenações e conexão.
-from pymongo import ASCENDING, DESCENDING, GEOSPHERE, MongoClient 
+from pymongo import ASCENDING, DESCENDING, GEOSPHERE, MongoClient
 from folium.plugins import MarkerCluster
 from streamlit_folium import st_folium
 
 BASE_DIR = Path(__file__).resolve().parent
 SQLITE_DB = str(BASE_DIR / "logitech.db")
 
-MONGO_URI = "mongodb://localhost:27017" #o docker publica essa
+MONGO_URI = "mongodb://localhost:27017"  # o docker publica essa
 MONGO_DB = "geolog_db"
 MONGO_COLLECTION = "telemetria"
 
-#seed relacional 
+# seed relacional
 MOTORISTAS = [
     (1, "Carlos Andrade", "123456789", "Ativo"),
     (2, "Mariana Silva", "987654321", "Ativo"),
@@ -70,14 +71,17 @@ PONTOS_REFERENCIA = {
     "Tibiri / BR-230": (-7.150, -34.950),
 }
 
+
 def conectar_sqlite():
     return sqlite3.connect(SQLITE_DB, check_same_thread=False)
+
 
 @st.cache_resource
 def conectar_mongo():
     client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=3000)
     client.admin.command("ping")
     return client[MONGO_DB][MONGO_COLLECTION]
+
 
 def inicializar_sqlite():
     conn = conectar_sqlite()
@@ -118,9 +122,9 @@ def inicializar_sqlite():
 
 
 def inicializar_mongo(collection):
-    #índice 2dsphere é indispensável para o MongoDB entender o campo
-    #`location` como GeoJSON e executar consultas geoespaciais por distância.
-    
+    # índice 2dsphere é indispensável para o MongoDB entender o campo
+    # `location` como GeoJSON e executar consultas geoespaciais por distância.
+
     collection.create_index([("location", GEOSPHERE)], name="location_2dsphere")
     collection.create_index(
         [("veiculo_id", ASCENDING), ("timestamp", DESCENDING)],
@@ -128,10 +132,11 @@ def inicializar_mongo(collection):
     )
     if collection.count_documents({}) == 0:
         collection.insert_many(TELEMETRIA_SEED)
-        
+
+
 def carregar_cadastros():
     conn = conectar_sqlite()
-   
+
     query = """
         SELECT
             v.id AS veiculo_id,
@@ -148,6 +153,7 @@ def carregar_cadastros():
     conn.close()
     return df
 
+
 def ultimas_telemetrias(collection):
     pipeline = [
         {"$sort": {"veiculo_id": 1, "timestamp": -1}},
@@ -157,8 +163,9 @@ def ultimas_telemetrias(collection):
     ]
     return list(collection.aggregate(pipeline))
 
+
 def join_poliglota(collection):
-    #Une os dados do SQLite e do MongoDB em memória usando veiculo_id.
+    # Une os dados do SQLite e do MongoDB em memória usando veiculo_id.
     cadastros = carregar_cadastros()
     telemetrias = ultimas_telemetrias(collection)
 
@@ -178,12 +185,17 @@ def join_poliglota(collection):
 
     if not linhas:
         for coluna in [
-            "ultima_temperatura", "velocidade", "latitude", "longitude", "timestamp"
+            "ultima_temperatura",
+            "velocidade",
+            "latitude",
+            "longitude",
+            "timestamp",
         ]:
             cadastros[coluna] = pd.NA
         return cadastros
 
     return cadastros.merge(pd.DataFrame(linhas), on="veiculo_id", how="left")
+
 
 def buscar_por_raio(collection, latitude, longitude, raio_km):
     # A interface usa km; o MongoDB usa metros. GeoJSON usa lon antes de lat.
@@ -202,7 +214,8 @@ def buscar_por_raio(collection, latitude, longitude, raio_km):
             }
         )
     )
-    
+
+
 def historico_temperatura(collection, veiculo_id):
     dados = list(
         collection.find({"veiculo_id": int(veiculo_id)}).sort("timestamp", ASCENDING)
@@ -218,7 +231,8 @@ def historico_temperatura(collection, veiculo_id):
             for item in dados
         ]
     )
-    
+
+
 def simular_movimentacao(collection):
     for item in ultimas_telemetrias(collection):
         longitude, latitude = item["location"]["coordinates"]
@@ -243,6 +257,7 @@ def simular_movimentacao(collection):
                 "timestamp": datetime.now(timezone.utc),
             }
         )
+
 
 def montar_mapa(collection, latitude, longitude, raio_km):
     """Cria o mapa Folium, o círculo de busca e os marcadores dos veículos."""
@@ -296,6 +311,7 @@ def montar_mapa(collection, latitude, longitude, raio_km):
         ).add_to(cluster)
 
     return mapa, resultados
+
 
 def main():
     # Streamlit reexecuta esta função quando o usuário altera um widget.
@@ -352,9 +368,7 @@ def main():
     df_unificado = join_poliglota(collection)
 
     # Os indicadores são calculados sobre o resultado do join poliglota.
-    total_frotas_ativas = int(
-        df_unificado["status_motorista"].eq("Ativo").sum()
-    )
+    total_frotas_ativas = int(df_unificado["status_motorista"].eq("Ativo").sum())
     media_temperatura = df_unificado["ultima_temperatura"].mean()
     alertas_velocidade = int((df_unificado["velocidade"] > 80).sum())
 
@@ -377,9 +391,7 @@ def main():
     with tab1:
         # Aba geoespacial: consulta $near e mapa Folium.
         st.subheader("Busca por raio com MongoDB `$near`")
-        mapa, resultados = montar_mapa(
-            collection, lat_padrao, lon_padrao, raio_km
-        )
+        mapa, resultados = montar_mapa(collection, lat_padrao, lon_padrao, raio_km)
         st_folium(mapa, width=None, height=520, use_container_width=True)
         st.write(f"**{len(resultados)} registro(s)** dentro do raio selecionado.")
 
@@ -492,6 +504,7 @@ def main():
             use_container_width=True,
             hide_index=True,
         )
+
 
 if __name__ == "__main__":
     main()
